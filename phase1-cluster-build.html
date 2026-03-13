@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 1 — Cluster Build</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0e17;--surface:#111827;--surface2:#1a2332;
+  --border:#1e293b;--border-hi:#334155;
+  --text:#e2e8f0;--text-dim:#94a3b8;--text-muted:#64748b;
+  --cyan:#06b6d4;--cyan-dim:#0891b2;--cyan-glow:rgba(6,182,212,.15);
+  --green:#10b981;--green-dim:#059669;--green-glow:rgba(16,185,129,.12);
+  --amber:#f59e0b;--amber-glow:rgba(245,158,11,.12);
+  --purple:#8b5cf6;--purple-glow:rgba(139,92,246,.12);
+  --red:#ef4444;
+}
+html{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+body{min-height:100vh}
+
+.noise{position:fixed;inset:0;z-index:0;opacity:.03;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.grid-bg{position:fixed;inset:0;z-index:0;opacity:.04;
+  background-image:linear-gradient(var(--cyan) 1px,transparent 1px),linear-gradient(90deg,var(--cyan) 1px,transparent 1px);
+  background-size:60px 60px;
+}
+
+.container{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:60px 32px 80px}
+
+/* Header */
+.phase-tag{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:100px;
+  background:var(--cyan-glow);border:1px solid rgba(6,182,212,.25);color:var(--cyan);
+  font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;
+  margin-bottom:24px;animation:fadeDown .8s ease both}
+.phase-tag .dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);animation:pulse 2s infinite}
+
+h1{font-size:clamp(42px,6vw,64px);font-weight:800;line-height:1.05;letter-spacing:-2px;
+  background:linear-gradient(135deg,#fff 0%,var(--cyan) 50%,var(--green) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  animation:fadeDown .8s .1s ease both}
+.subtitle{font-size:18px;color:var(--text-dim);margin-top:16px;line-height:1.6;max-width:640px;
+  animation:fadeDown .8s .2s ease both}
+
+/* Status bar */
+.status-bar{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px;animation:fadeDown .8s .3s ease both}
+.status-pill{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;
+  background:var(--surface);border:1px solid var(--border);font-size:13px;color:var(--text-dim);
+  font-family:'JetBrains Mono',monospace}
+.status-pill .indicator{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
+
+/* Cluster grid */
+.section-label{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;
+  color:var(--text-muted);margin-top:56px;margin-bottom:20px;padding-left:2px}
+
+.cluster-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+@media(max-width:700px){.cluster-grid{grid-template-columns:1fr}}
+
+.node-card{position:relative;padding:28px 24px;border-radius:16px;background:var(--surface);
+  border:1px solid var(--border);overflow:hidden;transition:all .3s ease}
+.node-card:hover{border-color:var(--border-hi);transform:translateY(-2px);
+  box-shadow:0 8px 32px rgba(0,0,0,.3)}
+.node-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:16px 16px 0 0}
+.node-card.server::before{background:linear-gradient(90deg,var(--cyan),var(--purple))}
+.node-card.worker::before{background:linear-gradient(90deg,var(--green),var(--cyan))}
+
+.node-role{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--cyan);margin-bottom:8px}
+.node-card.worker .node-role{color:var(--green)}
+.node-name{font-size:20px;font-weight:700;letter-spacing:-.5px;margin-bottom:16px}
+
+.spec-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);
+  font-size:13px}
+.spec-row:last-child{border-bottom:none}
+.spec-label{color:var(--text-muted);font-family:'JetBrains Mono',monospace;font-size:11px}
+.spec-value{color:var(--text);font-weight:500}
+
+/* Stack cards */
+.stack-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:700px){.stack-grid{grid-template-columns:1fr}}
+
+.stack-card{padding:24px;border-radius:16px;background:var(--surface);border:1px solid var(--border);
+  transition:all .3s ease;position:relative;overflow:hidden}
+.stack-card:hover{border-color:var(--border-hi);transform:translateY(-2px)}
+.stack-card::after{content:'';position:absolute;top:0;right:0;width:120px;height:120px;border-radius:50%;
+  filter:blur(60px);opacity:.08;pointer-events:none}
+.stack-card.cilium::after{background:var(--cyan)}
+.stack-card.metallb::after{background:var(--amber)}
+.stack-card.nginx::after{background:var(--green)}
+.stack-card.k3s::after{background:var(--purple)}
+
+.stack-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;margin-bottom:14px}
+.stack-card.cilium .stack-icon{background:var(--cyan-glow);color:var(--cyan);border:1px solid rgba(6,182,212,.2)}
+.stack-card.metallb .stack-icon{background:var(--amber-glow);color:var(--amber);border:1px solid rgba(245,158,11,.2)}
+.stack-card.nginx .stack-icon{background:var(--green-glow);color:var(--green);border:1px solid rgba(16,185,129,.2)}
+.stack-card.k3s .stack-icon{background:var(--purple-glow);color:var(--purple);border:1px solid rgba(139,92,246,.2)}
+
+.stack-name{font-size:17px;font-weight:600;margin-bottom:6px}
+.stack-desc{font-size:13px;color:var(--text-dim);line-height:1.5}
+.stack-tag{display:inline-block;margin-top:12px;padding:3px 10px;border-radius:6px;font-size:11px;
+  font-family:'JetBrains Mono',monospace;background:rgba(255,255,255,.04);color:var(--text-muted);
+  border:1px solid var(--border)}
+
+/* Network strip */
+.network-strip{margin-top:56px;padding:32px;border-radius:16px;background:var(--surface);border:1px solid var(--border);
+  position:relative;overflow:hidden}
+.network-strip::before{content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,var(--cyan-glow),transparent 50%,var(--green-glow));pointer-events:none}
+.network-title{font-size:17px;font-weight:600;margin-bottom:20px;position:relative}
+
+.net-flow{display:flex;align-items:center;gap:0;flex-wrap:wrap;position:relative}
+.net-node{padding:10px 18px;border-radius:10px;font-family:'JetBrains Mono',monospace;font-size:12px;
+  font-weight:500;white-space:nowrap;position:relative;z-index:1}
+.net-node.external{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);color:var(--amber)}
+.net-node.metallb-n{background:var(--amber-glow);border:1px solid rgba(245,158,11,.25);color:var(--amber)}
+.net-node.ingress{background:var(--green-glow);border:1px solid rgba(16,185,129,.25);color:var(--green)}
+.net-node.cilium-n{background:var(--cyan-glow);border:1px solid rgba(6,182,212,.25);color:var(--cyan)}
+.net-node.pod{background:var(--purple-glow);border:1px solid rgba(139,92,246,.25);color:var(--purple)}
+
+.net-arrow{color:var(--text-muted);font-size:18px;padding:0 8px;flex-shrink:0}
+
+/* Resource meter */
+.resource-section{margin-top:56px}
+.resource-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+@media(max-width:700px){.resource-grid{grid-template-columns:1fr}}
+
+.resource-card{padding:24px;border-radius:16px;background:var(--surface);border:1px solid var(--border)}
+.resource-label{font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;letter-spacing:1px;
+  text-transform:uppercase;margin-bottom:12px}
+.resource-bar-track{height:8px;border-radius:4px;background:var(--surface2);overflow:hidden;margin-bottom:8px}
+.resource-bar-fill{height:100%;border-radius:4px;transition:width 1.5s cubic-bezier(.4,0,.2,1)}
+.resource-bar-fill.cpu{background:linear-gradient(90deg,var(--cyan),var(--purple));width:28%}
+.resource-bar-fill.ram{background:linear-gradient(90deg,var(--green),var(--cyan));width:22%}
+.resource-bar-fill.disk{background:linear-gradient(90deg,var(--amber),var(--green));width:6%}
+.resource-values{display:flex;justify-content:space-between;font-size:13px}
+.resource-used{font-weight:600}
+.resource-total{color:var(--text-muted)}
+
+/* Footer */
+.footer{margin-top:64px;padding-top:32px;border-top:1px solid var(--border);display:flex;
+  justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
+.footer-brand{font-size:14px;color:var(--text-muted)}
+.footer-brand a{color:var(--cyan);text-decoration:none}
+.footer-links{display:flex;gap:16px}
+.footer-links a{font-size:13px;color:var(--text-muted);text-decoration:none;
+  font-family:'JetBrains Mono',monospace;transition:color .2s}
+.footer-links a:hover{color:var(--cyan)}
+
+/* Animations */
+@keyframes fadeDown{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+.reveal{opacity:0;transform:translateY(20px);transition:all .6s cubic-bezier(.4,0,.2,1)}
+.reveal.visible{opacity:1;transform:translateY(0)}
+</style>
+</head>
+<body>
+<div class="noise"></div>
+<div class="grid-bg"></div>
+
+<div class="container">
+
+  <div class="phase-tag"><span class="dot"></span> Phase 1 Complete</div>
+  <h1>From Proxmox<br>to Production</h1>
+  <p class="subtitle">A production-grade 3-node Kubernetes cluster built on bare metal. k3s with Cilium eBPF networking, MetalLB load balancing, and NGINX Ingress. Every command typed live, every decision explained.</p>
+
+  <div class="status-bar">
+    <div class="status-pill"><span class="indicator"></span> 3 nodes healthy</div>
+    <div class="status-pill"><span class="indicator"></span> Cilium eBPF active</div>
+    <div class="status-pill"><span class="indicator"></span> MetalLB L2 assigned</div>
+    <div class="status-pill"><span class="indicator"></span> Ingress routing</div>
+  </div>
+
+  <!-- Cluster Nodes -->
+  <div class="section-label reveal">// cluster nodes</div>
+  <div class="cluster-grid">
+    <div class="node-card server reveal">
+      <div class="node-role">Control Plane</div>
+      <div class="node-name">k3s-server</div>
+      <div class="spec-row"><span class="spec-label">vCPU</span><span class="spec-value">4 cores</span></div>
+      <div class="spec-row"><span class="spec-label">Memory</span><span class="spec-value">8 GB</span></div>
+      <div class="spec-row"><span class="spec-label">Disk</span><span class="spec-value">50 GB</span></div>
+      <div class="spec-row"><span class="spec-label">Role</span><span class="spec-value">API, scheduler, etcd</span></div>
+    </div>
+    <div class="node-card worker reveal">
+      <div class="node-role">Worker</div>
+      <div class="node-name">k3s-worker-01</div>
+      <div class="spec-row"><span class="spec-label">vCPU</span><span class="spec-value">8 cores</span></div>
+      <div class="spec-row"><span class="spec-label">Memory</span><span class="spec-value">32 GB</span></div>
+      <div class="spec-row"><span class="spec-label">Disk</span><span class="spec-value">100 GB</span></div>
+      <div class="spec-row"><span class="spec-label">Role</span><span class="spec-value">Workloads</span></div>
+    </div>
+    <div class="node-card worker reveal">
+      <div class="node-role">Worker</div>
+      <div class="node-name">k3s-worker-02</div>
+      <div class="spec-row"><span class="spec-label">vCPU</span><span class="spec-value">8 cores</span></div>
+      <div class="spec-row"><span class="spec-label">Memory</span><span class="spec-value">32 GB</span></div>
+      <div class="spec-row"><span class="spec-label">Disk</span><span class="spec-value">100 GB</span></div>
+      <div class="spec-row"><span class="spec-label">Role</span><span class="spec-value">Workloads</span></div>
+    </div>
+  </div>
+
+  <!-- Stack -->
+  <div class="section-label reveal">// infrastructure stack</div>
+  <div class="stack-grid">
+    <div class="stack-card k3s reveal">
+      <div class="stack-icon">K3</div>
+      <div class="stack-name">k3s</div>
+      <div class="stack-desc">Lightweight Kubernetes distribution. Traefik, servicelb, and Flannel disabled for a clean CNI slate.</div>
+      <span class="stack-tag">kubernetes</span>
+    </div>
+    <div class="stack-card cilium reveal">
+      <div class="stack-icon">CI</div>
+      <div class="stack-name">Cilium</div>
+      <div class="stack-desc">eBPF-based CNI with full kube-proxy replacement. Handles all service routing and network policy enforcement.</div>
+      <span class="stack-tag">eBPF networking</span>
+    </div>
+    <div class="stack-card metallb reveal">
+      <div class="stack-icon">ML</div>
+      <div class="stack-name">MetalLB</div>
+      <div class="stack-desc">Bare metal load balancer in L2 mode. Assigns external IPs from a reserved pool on the home subnet.</div>
+      <span class="stack-tag">L2 advertisement</span>
+    </div>
+    <div class="stack-card nginx reveal">
+      <div class="stack-icon">NG</div>
+      <div class="stack-name">NGINX Ingress</div>
+      <div class="stack-desc">Routes external HTTP/HTTPS traffic to cluster services by hostname and path via MetalLB VIP.</div>
+      <span class="stack-tag">ingress controller</span>
+    </div>
+  </div>
+
+  <!-- Network flow -->
+  <div class="network-strip reveal">
+    <div class="network-title">Request path — end to end</div>
+    <div class="net-flow">
+      <div class="net-node external">Client</div>
+      <div class="net-arrow">→</div>
+      <div class="net-node metallb-n">MetalLB VIP</div>
+      <div class="net-arrow">→</div>
+      <div class="net-node ingress">NGINX Ingress</div>
+      <div class="net-arrow">→</div>
+      <div class="net-node cilium-n">Cilium eBPF</div>
+      <div class="net-arrow">→</div>
+      <div class="net-node pod">Service Pod</div>
+    </div>
+  </div>
+
+  <!-- Resources -->
+  <div class="resource-section">
+    <div class="section-label reveal">// host resource usage</div>
+    <div class="resource-grid">
+      <div class="resource-card reveal">
+        <div class="resource-label">CPU</div>
+        <div class="resource-bar-track"><div class="resource-bar-fill cpu"></div></div>
+        <div class="resource-values">
+          <span class="resource-used">20 vCPU allocated</span>
+          <span class="resource-total">/ 72 total</span>
+        </div>
+      </div>
+      <div class="resource-card reveal">
+        <div class="resource-label">Memory</div>
+        <div class="resource-bar-track"><div class="resource-bar-fill ram"></div></div>
+        <div class="resource-values">
+          <span class="resource-used">72 GB allocated</span>
+          <span class="resource-total">/ 320 GB total</span>
+        </div>
+      </div>
+      <div class="resource-card reveal">
+        <div class="resource-label">Storage</div>
+        <div class="resource-bar-track"><div class="resource-bar-fill disk"></div></div>
+        <div class="resource-values">
+          <span class="resource-used">250 GB allocated</span>
+          <span class="resource-total">/ 4 TB total</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer reveal">
+    <div class="footer-brand">Built by Elliot Conner — <a href="https://thetech-e.com">The Tech-E</a></div>
+    <div class="footer-links">
+      <a href="https://github.com/E-Conners-Lab/Proxmox_Kubernetes">GitHub</a>
+      <a href="https://www.linkedin.com/in/elliot-conner-49240111/">LinkedIn</a>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const obs = new IntersectionObserver((entries) => {
+  entries.forEach((e, i) => {
+    if (e.isIntersecting) {
+      setTimeout(() => e.target.classList.add('visible'), i * 80);
+      obs.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.1 });
+document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+</script>
+</body>
+</html>
