@@ -1,79 +1,71 @@
-# CCIE EI VRF + MP-BGP Lab (No MPLS Data Plane)
+# Proxmox Kubernetes
 
-This lab simulates a CCIE Enterprise Infrastructure control plane scenario using:
-- VRF definitions
-- MP-BGP with VPNv4 route exchange
-- Proper route-target and RD configuration
+Production-grade Kubernetes cluster on Proxmox, built from scratch to host AI and network automation workloads.
 
-> ⚠️ Note: This lab uses Catalyst 8000v (IOS XE 17.13.01a) which does **not** support MPLS forwarding. The focus here is on control plane logic, not MPLS transport.
+## What this is
 
----
+A 3-node k3s cluster running on Proxmox VMs with Cilium (eBPF networking), MetalLB (bare metal load balancing), and NGINX Ingress. Designed to run real workloads on real infrastructure, not a toy lab.
 
-## 🧪 Lab Overview
+This repo contains the runbooks, manifests, and configurations used throughout the build. It's the companion repo for the [From Proxmox to Production](https://youtube.com) video series on The Tech-E YouTube channel.
 
-Two routers (R1 and R2) are configured with:
+## Cluster stack
 
-- VRFs `BLUE` and `RED`
-- Loopbacks and subinterfaces mapped to VRFs
-- MP-BGP over loopback peering (iBGP or eBGP)
-- Redistribution of connected routes per VRF
+| Component | Choice |
+|---|---|
+| Hypervisor | Proxmox VE |
+| Kubernetes | k3s (no Traefik, no servicelb, no Flannel) |
+| CNI | Cilium with kube-proxy replacement (eBPF) |
+| Load balancer | MetalLB (L2 mode) |
+| Ingress | NGINX Ingress Controller |
+| Storage | Longhorn (Phase 2) |
+| Secrets | Sealed Secrets (Phase 3) |
 
----
+## Cluster layout
 
-## 🧰 Files
+| Node | Role | Resources |
+|---|---|---|
+| k3s-server | Control plane | 4 vCPU, 8GB RAM, 50GB disk |
+| k3s-worker-01 | Worker | 8 vCPU, 32GB RAM, 100GB disk |
+| k3s-worker-02 | Worker | 8 vCPU, 32GB RAM, 100GB disk |
 
-| Script | Purpose |
-|--------|---------|
-| `01_config_vrfs.py` | Defines VRFs, RDs, RTs on R1 and R2 |
-| `02_config_interfaces.py` | Assigns IPs to loopbacks and subinterfaces |
-| `03_config_bgp.py` | Configures MP-BGP with VPNv4 and VRF AFs |
+## Build phases
 
----
+**Phase 1 — Cluster build (current)**
+VM template creation, k3s install, Cilium CNI, MetalLB, NGINX Ingress. Everything needed to get a working cluster that can accept workloads.
 
-## 📦 Requirements
+**Phase 2 — Storage**
+Longhorn distributed storage across worker nodes. Persistent volumes for databases and application state.
 
-- Python 3.9+
-- `netmiko`, `python-dotenv`
-- Catalyst 8000v routers with SSH access
-- .env file with:
-  ```env
-  USERNAME=admin
-  PASSWORD=Cisco123
-  ```
+**Phase 3 — Application deployment**
+Deploy the full application stack: FastAPI backend, ChromaDB vector database, Redis, and supporting services. Sealed Secrets for API key management. Cilium network policies for least-privilege egress.
 
----
+**Phase 4 — Observability**
+Prometheus, Grafana, and Loki for monitoring, dashboards, and log aggregation across the cluster and workloads.
 
-## 🚀 Usage
+## Repo structure
 
-```bash
-source netauto-venv/bin/activate  # if using a virtual env
-python3 01_config_vrfs.py
-python3 02_config_interfaces.py
-python3 03_config_bgp.py
+```
+docs/
+  k3s-proxmox-runbook.pdf    # Phase 1 runbook — full cluster build
+manifests/                    # Kubernetes manifests (coming in Phase 2+)
 ```
 
----
+## Getting started
 
-## 🧠 Learning Goals
+Download the Phase 1 runbook from [`docs/k3s-proxmox-runbook.pdf`](docs/k3s-proxmox-runbook.pdf). It walks through every command from VM creation to a validated cluster. All personal info has been replaced with placeholders — fill in the quick reference table on the last page with your environment details before starting.
 
-- Understand VRF-to-BGP integration
-- Practice route-target policy with MP-BGP
-- Build toward MPLS L3 VPN architecture (control plane)
+### Prerequisites
 
----
+- A Proxmox server (any hardware with enough RAM for 3 VMs)
+- SSH key pair on your dev machine
+- kubectl installed on your dev machine
 
-## ⚠️ Known Limitations
+## Links
 
-- No `mpls ip`, `ip cef`, or `ldp` available in this image
-- Routes are exchanged via MP-BGP but not labeled or forwarded
-- Use real hardware or IOSv for full MPLS support
+- [The Tech-E](https://thetech-e.com)
+- [YouTube — From Proxmox to Production series](https://youtube.com)
+- [LinkedIn — Elliot Conner](https://www.linkedin.com/in/elliot-conner-49240111/)
 
----
-
-## 🔗 License
+## License
 
 MIT
-
----
-
-Maintained by [Your Name] — for CCIE prep and network automation learning.
