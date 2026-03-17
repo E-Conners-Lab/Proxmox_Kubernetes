@@ -17,8 +17,10 @@ This repo contains the runbooks, manifests, and configurations used throughout t
 | CNI | Cilium with kube-proxy replacement (eBPF) |
 | Load balancer | MetalLB (L2 mode) |
 | Ingress | NGINX Ingress Controller |
-| Storage | Longhorn (Phase 2) |
-| Secrets | Sealed Secrets (Phase 3) |
+| Storage | Longhorn |
+| Secrets | HashiCorp Vault (K8s auth + Agent Injector) |
+| Vector DB | ChromaDB |
+| Network Policy | Cilium (least-privilege egress) |
 
 ## Cluster layout
 
@@ -30,14 +32,14 @@ This repo contains the runbooks, manifests, and configurations used throughout t
 
 ## Build phases
 
-**Phase 1 — Cluster build (current)**
+**Phase 1 — Cluster build** ✅
 VM template creation, k3s install, Cilium CNI, MetalLB, NGINX Ingress. Everything needed to get a working cluster that can accept workloads.
 
-**Phase 2 — Storage**
-Longhorn distributed storage across worker nodes. Persistent volumes for databases and application state.
+**Phase 2 — Storage, secrets, and first workload** ✅
+Longhorn distributed storage, HashiCorp Vault in production mode with Kubernetes auth and Agent Injector, ChromaDB vector database, and Cilium network policies enforcing least-privilege egress.
 
-**Phase 3 — Application deployment**
-Deploy the full application stack: FastAPI backend, ChromaDB vector database, Redis, and supporting services. Sealed Secrets for API key management. Cilium network policies for least-privilege egress.
+**Phase 3 — Agent deployment (current)**
+Deploy the FastAPI agent backend, wire up Vault secret injection, connect to ContainerLab network devices, and run the first autonomous troubleshooting session.
 
 **Phase 4 — Observability**
 Prometheus, Grafana, and Loki for monitoring, dashboards, and log aggregation across the cluster and workloads.
@@ -46,13 +48,14 @@ Prometheus, Grafana, and Loki for monitoring, dashboards, and log aggregation ac
 
 ```
 docs/
-  k3s-proxmox-runbook.pdf    # Phase 1 runbook — full cluster build
-manifests/                    # Kubernetes manifests (coming in Phase 2+)
+  k3s-proxmox-runbook.pdf                  # Phase 1 runbook — full cluster build
+phase2-storage-secrets-runbook.html        # Phase 2 runbook — source (HTML)
+phase2-storage-secrets-runbook.pdf         # Phase 2 runbook — printable (PDF)
 ```
 
 ## Getting started
 
-Download the Phase 1 runbook from [`docs/k3s-proxmox-runbook.pdf`](docs/k3s-proxmox-runbook.pdf). It walks through every command from VM creation to a validated cluster. All personal info has been replaced with placeholders — fill in the quick reference table on the last page with your environment details before starting.
+Start with the Phase 1 runbook ([`docs/k3s-proxmox-runbook.pdf`](docs/k3s-proxmox-runbook.pdf)) for the full cluster build, then follow the Phase 2 runbook ([`phase2-storage-secrets-runbook.pdf`](phase2-storage-secrets-runbook.pdf)) for storage, secrets, and the first workload. All personal info has been replaced with placeholders — fill in the quick reference table on the last page of each runbook with your environment details before starting.
 
 ### Prerequisites
 
